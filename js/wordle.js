@@ -68,15 +68,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.addEventListener('click', initAudio, { once: true });
 
     // Armenian keyboard layout (phonetic style)
-    const keys = [
-        ['Է', 'Թ', 'Փ', 'Ձ', 'Ջ', 'Ր', 'Չ', 'Ճ', 'Ժ', 'Ծ'],
-        ['Ք', 'Ո', 'Ե', 'Ռ', 'Տ', 'Ը', 'Ւ', 'Ի', 'Օ', 'Պ'],
-        ['Ա', 'Ս', 'Դ', 'Ֆ', 'Գ', 'Հ', 'Յ', 'Կ', 'Լ'],
-        ['⏎', 'Զ', 'Խ', 'Ց', 'Վ', 'Բ', 'Ն', 'Մ', 'Շ', 'Ղ', '⌫']
-    ];
-
-    // Flat array for quick lookup
-    const allKeys = keys.flat();
+    let keys = [];
+    let allKeys = [];
 
     function initBoard() {
         for (let i = 0; i < maxGuesses; i++) {
@@ -97,6 +90,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function initKeyboard() {
+        const previousStates = new Map(
+            [...keyboardContainer.querySelectorAll("button[data-key][data-state]")]
+                .map(button => [button.dataset.key, button.dataset.state])
+        );
+        const rows = window.HaygKeyboard.getRows().map(row => [...row]);
+        rows[rows.length - 1] = ['⏎', ...rows[rows.length - 1], '⌫'];
+        keys = rows;
+        allKeys = keys.flat();
+        keyboardContainer.replaceChildren();
+
         for (let row of keys) {
             let keyboardRow = document.createElement("div");
             keyboardRow.className = "keyboard-row";
@@ -108,6 +111,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 if (key === '⏎' || key === '⌫') {
                     button.classList.add("wide-button");
+                }
+                const state = previousStates.get(key);
+                if (state) {
+                    button.setAttribute("data-state", state);
+                    button.classList.add(`key-${state}`);
                 }
 
                 button.addEventListener("click", () => handleInput(key));
@@ -379,6 +387,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (overlayBtn) overlayBtn.textContent = "Նոր Խաղ";
         startOverlay.classList.remove("hidden");
         isGameStarted = false;
+        window.setGameKeyboardActive?.(false);
         syncHintsFromAPI();
     }
 
@@ -413,11 +422,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             resetGame();
             startOverlay.classList.add("hidden");
             isGameStarted = true;
+            window.setGameKeyboardActive?.(true);
             updateHintUI();
             e.currentTarget.blur();
         });
     } else {
         isGameStarted = true;
+        window.setGameKeyboardActive?.(true);
         updateHintUI();
     }
 
@@ -439,5 +450,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     initBoard();
     initKeyboard();
+    window.HaygKeyboard?.onLayoutChange(initKeyboard);
     syncHintsFromAPI();
 });

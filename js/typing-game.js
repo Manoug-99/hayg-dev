@@ -8,6 +8,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     const wpmDisplay = document.getElementById("wpm-display");
     const accuracyDisplay = document.getElementById("accuracy-display");
     const keyboardContainer = document.getElementById("keyboard-container");
+    const startBestDisplay = document.getElementById("typing-start-best");
+    const bestScoreDisplay = document.getElementById("typing-best-score");
+    const bestSpeedDisplay = document.getElementById("typing-best-speed");
+    const recordNote = document.getElementById("typing-record-note");
+    const resultCard = document.getElementById("typing-result-card");
+    const timerSelect = document.getElementById("typing-timer-select");
+    const durationOptions = [...document.querySelectorAll(".typing-duration-option")];
+    const resultDuration = document.getElementById("typing-result-duration");
+    const resultOverlay = document.getElementById("typing-result-overlay");
 
     let isPlaying = false;
     let isGameOver = false;
@@ -22,8 +31,140 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let totalKeystrokes = 0;
     let correctKeystrokes = 0;
+    const bestScores = { 60: 0, 120: 0, 300: 0 };
+    let bestSpeed = 0;
+    let signedInUserId = null;
+    let personalBestPromise = Promise.resolve();
 
     let audioContext;
+
+    function bestScoreStorageKey(duration) {
+        return signedInUserId
+            ? `typing_${duration}_best_${signedInUserId}`
+            : `typing_${duration}_best_guest`;
+    }
+
+    function getModeName(duration) {
+        return `typing_${duration}`;
+    }
+
+    function bestSpeedStorageKey() {
+        return signedInUserId
+            ? `typing_best_speed_${signedInUserId}`
+            : "typing_best_speed_guest";
+    }
+
+    function renderSelectedBest() {
+        const duration = Number(timerSelect.value);
+        const best = bestScores[duration] || 0;
+        startBestDisplay.textContent = String(best);
+        bestScoreDisplay.textContent = String(best);
+        bestSpeedDisplay.textContent = String(bestSpeed);
+        durationOptions.forEach(option => {
+            const selected = Number(option.dataset.duration) === duration;
+            option.classList.toggle("is-selected", selected);
+            option.setAttribute("aria-pressed", String(selected));
+        });
+    }
+
+    async function loadPersonalBest() {
+        const user = await window.HaygAPI?.getCurrentUser();
+        signedInUserId = user?.id || null;
+        try {
+            bestSpeed = Number(localStorage.getItem(bestSpeedStorageKey())) || 0;
+        } catch (error) {
+            console.error("Could not load typing-game best speed from local storage:", error);
+        }
+        for (const duration of Object.keys(bestScores).map(Number)) {
+            const storageKey = bestScoreStorageKey(duration);
+            let localBest = 0;
+            try {
+                localBest = Number(localStorage.getItem(storageKey)) || 0;
+            } catch (error) {
+                console.error("Could not load typing-game personal best from local storage:", error);
+            }
+            bestScores[duration] = localBest;
+
+            if (signedInUserId && window.HaygAPI?.getPersonalBest) {
+                try {
+                    const databaseBest = Number(await window.HaygAPI.getPersonalBest(getModeName(duration))) || 0;
+                    bestScores[duration] = Math.max(localBest, databaseBest);
+                    if (bestScores[duration] > databaseBest) {
+                        await window.HaygAPI.updatePersonalBest(getModeName(duration), bestScores[duration]);
+                    }
+                    if (bestScores[duration] > localBest) {
+                        localStorage.setItem(storageKey, String(bestScores[duration]));
+                    }
+                } catch (error) {
+                    console.error(`Could not load ${duration}-second typing-game personal best:`, error);
+                }
+            }
+        }
+
+        if (signedInUserId && window.HaygAPI?.getPersonalBest) {
+            try {
+                const databaseBestSpeed = Number(await window.HaygAPI.getPersonalBest("typing", "speed")) || 0;
+                bestSpeed = Math.max(bestSpeed, databaseBestSpeed);
+                if (bestSpeed > databaseBestSpeed) {
+                    await window.HaygAPI.updatePersonalBest("typing", bestSpeed, "speed");
+                }
+                if (bestSpeed > 0) {
+                    localStorage.setItem(bestSpeedStorageKey(), String(bestSpeed));
+                }
+            } catch (error) {
+                console.error("Could not load typing-game best speed from the database:", error);
+            }
+        }
+        renderSelectedBest();
+    }
+
+    async function savePersonalBest(duration, score) {
+        const previousBest = bestScores[duration] || 0;
+        if (score <= previousBest) return false;
+
+        bestScores[duration] = score;
+        renderSelectedBest();
+
+        try {
+            localStorage.setItem(bestScoreStorageKey(duration), String(score));
+        } catch (error) {
+            console.error("Could not save typing-game personal best locally:", error);
+        }
+
+        if (signedInUserId && window.HaygAPI?.updatePersonalBest) {
+            try {
+                await window.HaygAPI.updatePersonalBest(getModeName(duration), score);
+            } catch (error) {
+                console.error(`Could not save ${duration}-second typing-game personal best to the database:`, error);
+            }
+            try {
+                await window.HaygAPI.updatePersonalBest("typing", score);
+            } catch (error) {
+                console.error("Could not update overall typing-game personal best:", error);
+            }
+        }
+        return true;
+    }
+
+    async function saveBestSpeed(speed) {
+        if (speed <= bestSpeed) return false;
+
+        bestSpeed = speed;
+        renderSelectedBest();
+        try {
+            localStorage.setItem(bestSpeedStorageKey(), String(speed));
+        } catch (error) {
+            console.error("Could not save typing-game best speed locally:", error);
+        }
+        if (signedInUserId && window.HaygAPI?.updatePersonalBest) {
+            try {
+                await window.HaygAPI.updatePersonalBest("typing", speed, "speed");
+            } catch (error) {
+                console.error("Could not save typing-game best speed to the database:", error);
+            }
+        }
+        return true;
+    }
 
     function initAudio() {
         if (!audioContext) {
@@ -31,16 +172,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    const keyboardLayout = [
-        ['է', 'թ', 'փ', 'ձ', 'ջ', 'ր', 'չ', 'ճ', 'ժ', 'ծ'],
-        ['ք', 'ո', 'ե', 'ռ', 'տ', 'ը', 'ւ', 'ի', 'օ', 'պ'],
-        ['ա', 'ս', 'դ', 'ֆ', 'գ', 'հ', 'յ', 'կ', 'լ'],
-        ['զ', 'խ', 'ց', 'վ', 'բ', 'ն', 'մ', 'շ', 'ղ', '⌫'],
-        ['SPACE', '↻']
-    ];
-
     function initKeyboard() {
         keyboardContainer.innerHTML = '';
+        const keyboardLayout = window.HaygKeyboard.getRows()
+            .map(row => [...row.toLowerCase()]);
+        keyboardLayout[keyboardLayout.length - 1].push('⌫');
+        keyboardLayout.push(['SPACE', '↻']);
         for (let row of keyboardLayout) {
             let keyboardRow = document.createElement("div");
             keyboardRow.className = "keyboard-row";
@@ -172,6 +309,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         isPlaying = true;
         isGameOver = false;
         focusOverlay.classList.add('hidden');
+        window.setGameKeyboardActive?.(true);
 
         timerInterval = setInterval(() => {
             timer--;
@@ -186,29 +324,52 @@ document.addEventListener("DOMContentLoaded", async () => {
         }, 1000);
     }
 
-    function endGame() {
+    async function endGame() {
         isPlaying = false;
         isGameOver = true;
+        window.setGameKeyboardActive?.(false);
         clearInterval(timerInterval);
         calculateStats();
 
         const finalWpm = wpmDisplay.textContent;
         const finalAcc = accuracyDisplay.textContent;
         const scoreEarned = correctKeystrokes * 2;
-
-        if (window.HaygAPI) window.HaygAPI.updateScore('typing', scoreEarned);
+        const completedDuration = maxTimer;
+        recordNote.textContent = "";
+        resultCard.classList.remove("new-record");
 
         document.getElementById("final-wpm").textContent = finalWpm;
         document.getElementById("final-accuracy").textContent = finalAcc;
+        document.getElementById("final-score").textContent = String(scoreEarned);
+        resultDuration.textContent = ``;
+        bestScoreDisplay.textContent = String(bestScores[completedDuration] || 0);
 
-        // Dynamic title
         const resultTitle = document.querySelector("#typing-result-overlay h2");
         if (resultTitle) {
             resultTitle.innerHTML = `${timer > 0 ? "Ամբողջացուցիք" : "Ժամանակը սպառեցաւ"}`;
         }
 
-        document.getElementById("typing-result-overlay").classList.remove("hidden");
+        resultOverlay.classList.remove("hidden");
         isGameStarted = false;
+
+        await personalBestPromise;
+        if (window.HaygAPI) {
+            try {
+                await window.HaygAPI.updateScore('typing', scoreEarned);
+            } catch (error) {
+                console.error("Could not save typing-game score:", error);
+            }
+        }
+        const isNewBestScore = await savePersonalBest(completedDuration, scoreEarned);
+        const isNewBestSpeed = await saveBestSpeed(Number(finalWpm) || 0);
+        if (isNewBestScore || isNewBestSpeed) {
+            resultCard.classList.remove("new-record");
+            void resultCard.offsetWidth;
+            resultCard.classList.add("new-record");
+            recordNote.textContent = isNewBestScore && isNewBestSpeed
+                ? "Նոր անձնական նիշ եւ արագութիւն։"
+                : isNewBestSpeed ? "Նոր լաւագոյն արագութիւն։" : "Նոր անձնական լաւագոյն նիշ։";
+        }
     }
 
     function calculateStats() {
@@ -247,10 +408,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         wpmDisplay.textContent = "0";
         accuracyDisplay.textContent = "100%";
         wordsDisplay.style.transform = "translateY(0)";
+        recordNote.textContent = "";
+        resultCard.classList.remove("new-record");
 
         focusOverlay.textContent = "Սկսիր տպել";
         focusOverlay.classList.remove('hidden');
-        document.getElementById("typing-result-overlay").classList.add("hidden");
+        resultOverlay.classList.add("hidden");
 
         generateWords();
         renderWords();
@@ -263,8 +426,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (startBtn && startOverlay) {
         startBtn.addEventListener("click", (e) => {
             resetGame();
+            const keyboardSettingsButton = document.querySelector("#typing-start-overlay .keyboard-settings-button");
+            if (keyboardSettingsButton) {
+                document.querySelector(".typing-container .game-header")?.appendChild(keyboardSettingsButton);
+            }
             startOverlay.classList.add("hidden");
             isGameStarted = true;
+            startGame();
             e.currentTarget.blur();
         });
     }
@@ -273,11 +441,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (retryBtn) {
         retryBtn.addEventListener("click", (e) => {
             resetGame();
-            document.getElementById("typing-result-overlay").classList.add("hidden");
             isGameStarted = true;
+            startGame();
             e.currentTarget.blur();
         });
     }
+
+    document.getElementById("typing-change-duration").addEventListener("click", () => {
+        resultOverlay.classList.add("hidden");
+        const keyboardSettingsButton = document.querySelector(".typing-container .game-header .keyboard-settings-button");
+        if (keyboardSettingsButton) {
+            startOverlay.querySelector(".typing-start-card")?.appendChild(keyboardSettingsButton);
+        }
+        startOverlay.classList.remove("hidden");
+        durationOptions.find(option => Number(option.dataset.duration) === Number(timerSelect.value))?.focus();
+    });
+
+    timerSelect.addEventListener("change", renderSelectedBest);
+    durationOptions.forEach(option => {
+        option.addEventListener("click", () => {
+            timerSelect.value = option.dataset.duration;
+            timerSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+    });
 
     if (select) {
         maxTimer = parseInt(select.value);
@@ -464,5 +650,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.addEventListener('keydown', initAudio, { once: true });
 
     initKeyboard();
+    window.HaygKeyboard?.onLayoutChange(initKeyboard);
+    personalBestPromise = loadPersonalBest();
     resetGame();
 });

@@ -15,7 +15,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const gameOver = document.getElementById("game-over");
     const retryBtn = document.getElementById("retry-btn");
     const finalScore = document.getElementById("final-score");
-    const finalLevel = document.getElementById("final-level");
+    const finalBestScore = document.getElementById("final-best-score");
+    const recordNote = document.getElementById("ztype-record-note");
+    const difficultySelect = document.getElementById("ztype-level-select");
+    const startBestScore = document.getElementById("ztype-start-best");
+    const finalDifficulty = document.getElementById("final-difficulty");
     const finalWords = document.getElementById("final-words");
     const finalAccuracy = document.getElementById("final-accuracy");
     const wordTarget = document.getElementById("word-target");
@@ -32,6 +36,99 @@ document.addEventListener("DOMContentLoaded", async () => {
     let wordsCompleted = 0;
     let totalKeystrokes = 0;
     let correctKeystrokes = 0;
+    const bestScores = { easy: 0, medium: 0, hard: 0 };
+    let currentDifficulty = difficultySelect?.value || "hard";
+    let signedInUserId = null;
+    let personalBestPromise = Promise.resolve();
+
+    function bestScoreStorageKey(difficulty) {
+        return signedInUserId
+            ? `ztype_${difficulty}_best_${signedInUserId}`
+            : `ztype_${difficulty}_best_guest`;
+    }
+
+    function getModeName(difficulty) {
+        return `ztype_${difficulty}`;
+    }
+
+    function getDifficultyLabel(difficulty) {
+        return {
+            easy: "Դիւրին",
+            medium: "Միջին",
+            hard: "Դժուար"
+        }[difficulty] || "Դժուար";
+    }
+
+    function renderSelectedBest() {
+        const difficulty = difficultySelect?.value || "hard";
+        startBestScore.textContent = `${getDifficultyLabel(difficulty)} · Լաւագոյն նիշ՝ ${bestScores[difficulty] || 0}`;
+    }
+
+    async function loadPersonalBest() {
+        const user = await window.HaygAPI?.getCurrentUser();
+        signedInUserId = user?.id || null;
+
+        for (const difficulty of Object.keys(bestScores)) {
+            const storageKey = bestScoreStorageKey(difficulty);
+            let localBest = 0;
+            try {
+                localBest = Number(localStorage.getItem(storageKey)) || 0;
+            } catch (error) {
+                console.error("Could not load ZType personal best from local storage:", error);
+            }
+            bestScores[difficulty] = localBest;
+
+            if (signedInUserId && window.HaygAPI?.getPersonalBest) {
+                try {
+                    const databaseBest = Number(await window.HaygAPI.getPersonalBest(getModeName(difficulty))) || 0;
+                    bestScores[difficulty] = Math.max(localBest, databaseBest);
+                    if (bestScores[difficulty] > databaseBest) {
+                        await window.HaygAPI.updatePersonalBest(getModeName(difficulty), bestScores[difficulty]);
+                    }
+                    if (bestScores[difficulty] > localBest) {
+                        localStorage.setItem(storageKey, String(bestScores[difficulty]));
+                    }
+                } catch (error) {
+                    console.error(`Could not load ${difficulty} ZType personal best:`, error);
+                }
+            }
+        }
+        renderSelectedBest();
+        finalBestScore.textContent = String(bestScores[currentDifficulty] || 0);
+    }
+
+    async function savePersonalBest(difficulty, score) {
+        const previousBest = bestScores[difficulty] || 0;
+        if (score <= previousBest) return false;
+
+        bestScores[difficulty] = score;
+        finalBestScore.textContent = String(score);
+        renderSelectedBest();
+        recordNote.textContent = "Նոր անձնական լաւագոյն։";
+        const panel = gameOver.querySelector(".overlay-panel");
+        panel.classList.remove("new-record");
+        void panel.offsetWidth;
+        panel.classList.add("new-record");
+        try {
+            localStorage.setItem(bestScoreStorageKey(difficulty), String(score));
+        } catch (error) {
+            console.error("Could not save ZType personal best locally:", error);
+        }
+
+        if (signedInUserId && window.HaygAPI?.updatePersonalBest) {
+            try {
+                await window.HaygAPI.updatePersonalBest(getModeName(difficulty), score);
+            } catch (error) {
+                console.error(`Could not save ${difficulty} ZType personal best to the database:`, error);
+            }
+            try {
+                await window.HaygAPI.updatePersonalBest("ztype", score);
+            } catch (error) {
+                console.error("Could not update overall ZType personal best:", error);
+            }
+        }
+        return true;
+    }
 
     // Entities
     let stars = [];
@@ -49,6 +146,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     let audioCtx;
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(error => console.error('Could not resume ZType audio:', error));
+        }
     }
 
     function playSound(type) {
@@ -106,18 +206,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     resize();
 
     // Armenian Keyboard Layout
-    const kbLayout = [
-        ['է', 'թ', 'փ', 'ձ', 'ջ', 'ր', 'չ', 'ճ', 'ժ', 'ծ'],
-        ['ք', 'ո', 'ե', 'ռ', 'տ', 'ը', 'ւ', 'ի', 'օ', 'պ'],
-        ['ա', 'ս', 'դ', 'ֆ', 'գ', 'հ', 'յ', 'կ', 'լ'],
-        ['զ', 'խ', 'ց', 'վ', 'բ', 'ն', 'մ', 'շ', 'ղ']
-    ];
-
     function initKeyboard() {
         keyboardContainer.innerHTML = '';
-        kbLayout.forEach(row => {
+        window.HaygKeyboard.getRows().forEach(rowLetters => {
             const rEl = document.createElement('div');
             rEl.className = 'keyboard-row';
+            const row = [...rowLetters.toLowerCase()];
             row.forEach(key => {
                 const btn = document.createElement('button');
                 btn.textContent = key;
@@ -590,8 +684,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     // --- Game Flow ---
     function startGame() {
         initAudio();
+        currentDifficulty = difficultySelect?.value || "hard";
         startMenu.classList.add("hidden");
         gameOver.classList.add("hidden");
+        recordNote.textContent = "";
+        gameOver.querySelector(".overlay-panel").classList.remove("new-record");
         hud.classList.remove("hidden");
 
         score = 0;
@@ -622,20 +719,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         requestAnimationFrame(loop);
     }
 
-    function endGame() {
+    async function endGame() {
+        if (!isPlaying) return;
         isPlaying = false;
         hud.classList.add("hidden");
         wordTarget.classList.add("hidden");
         gameOver.classList.remove("hidden");
 
         finalScore.textContent = score;
-        finalLevel.textContent = level;
         finalWords.textContent = wordsCompleted;
 
         const acc = totalKeystrokes > 0 ? Math.round((correctKeystrokes / totalKeystrokes) * 100) : 0;
         finalAccuracy.textContent = acc + "%";
+        finalDifficulty.textContent = getDifficultyLabel(currentDifficulty);
+        recordNote.textContent = "";
+        finalBestScore.textContent = String(bestScores[currentDifficulty] || 0);
 
-        if (window.HaygAPI) window.HaygAPI.updateScore('ztype', score);
+        await personalBestPromise;
+        if (window.HaygAPI) {
+            try {
+                await window.HaygAPI.updateScore('ztype', score);
+            } catch (error) {
+                console.error("Could not save ZType score:", error);
+            }
+        }
+        await savePersonalBest(currentDifficulty, score);
     }
 
     // --- Event Listeners ---
@@ -648,6 +756,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     startBtn.addEventListener("click", startGame);
     retryBtn.addEventListener("click", startGame);
+    difficultySelect.addEventListener("change", renderSelectedBest);
 
     document.addEventListener("keydown", (e) => {
         if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -671,6 +780,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     initKeyboard();
+    window.HaygKeyboard.onLayoutChange(initKeyboard);
     initStars();
     drawBackground(0); // Initial draw behind menu
+    personalBestPromise = loadPersonalBest();
 });

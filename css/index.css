@@ -208,8 +208,7 @@ h1 {
 
 /* Dark Mode Toggle */
 /* Dark Mode Toggle & Controls */
-#dark-mode-toggle,
-#keyboard-toggle {
+#dark-mode-toggle {
     width: 44px;
     height: 44px;
     flex-shrink: 0;
@@ -235,13 +234,11 @@ h1 {
     right: 20px;
 }
 
-#dark-mode-toggle:hover,
-#keyboard-toggle:hover {
+#dark-mode-toggle:hover {
     transform: scale(1.1);
 }
 
-#dark-mode-toggle:active,
-#keyboard-toggle:active {
+#dark-mode-toggle:active {
     transform: scale(0.95);
 }
 
@@ -282,6 +279,10 @@ h1 {
 }
 
 .back-button {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -313,6 +314,33 @@ h1 {
     flex-direction: column;
     gap: 6px;
     margin: 0 auto;
+}
+
+body.has-virtual-keyboard .header-controls {
+    gap: 6px;
+}
+
+@media (max-width: 600px) {
+    body.has-virtual-keyboard .game-container .game-header {
+        height: var(--header-height);
+        min-height: var(--header-height);
+        padding: 0 15px;
+        align-items: center;
+    }
+
+    body.has-virtual-keyboard .game-container .game-header h1 {
+        transform: none;
+    }
+
+    body.has-virtual-keyboard .game-container .game-header .back-button {
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    body.has-virtual-keyboard .game-container .game-header > .keyboard-settings-button {
+        top: 50%;
+        transform: translateY(-50%);
+    }
 }
 
 .keyboard-row {

@@ -43,6 +43,7 @@
     document.body.appendChild(root);
 
     const launcher = root.querySelector('#message-launcher');
+    const isMainMenu = Boolean(document.querySelector('.navbar'));
     const inbox = root.querySelector('#message-inbox');
     const inboxBody = root.querySelector('#message-inbox-body');
     const inboxStatus = root.querySelector('#message-inbox-status');
@@ -111,7 +112,7 @@
             console.error('Could not verify message admin:', error);
             return;
         }
-        launcher.hidden = !data;
+        launcher.hidden = !data || !isMainMenu;
         if (data) await loadRecipients(userId);
     }
 

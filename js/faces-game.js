@@ -113,8 +113,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById('message').textContent = 'Անցար բոլոր մակարդակները';
             document.getElementById('guess-input').disabled = true;
             document.getElementById('submit-btn').disabled = true;
+            window.setGameKeyboardActive?.(false);
             return;
         }
+        window.setGameKeyboardActive?.(true);
         const person = people[currentLevel];
         document.getElementById('level').textContent = `${currentLevel + 1} / ${people.length}`;
         document.getElementById('guess-input').value = '';
@@ -183,15 +185,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const keyboardContainer = document.getElementById('keyboard-container');
 
     // Phonetic keyboard layout matching Wordle
-    const keys = [
-        ['Է', 'Թ', 'Փ', 'Ձ', 'Ջ', 'Ր', 'Չ', 'Ճ', 'Ժ', 'Ծ'],
-        ['Ք', 'Ո', 'Ե', 'Ռ', 'Տ', 'Ը', 'Ւ', 'Ի', 'Օ', 'Պ'],
-        ['Ա', 'Ս', 'Դ', 'Ֆ', 'Գ', 'Հ', 'Յ', 'Կ', 'Լ'],
-        ['␣', 'Զ', 'Խ', 'Ց', 'Վ', 'Բ', 'Ն', 'Մ', 'Շ', 'Ղ', '⌫']
-    ];
-
     function initKeyboard() {
-        for (let row of keys) {
+        const rows = window.HaygKeyboard.getRows().map(row => [...row]);
+        rows[rows.length - 1] = ['␣', ...rows[rows.length - 1], '⌫'];
+        keyboardContainer.replaceChildren();
+        for (let row of rows) {
             let keyboardRow = document.createElement("div");
             keyboardRow.className = "keyboard-row";
             
@@ -229,5 +227,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
+    window.HaygKeyboard?.onLayoutChange(initKeyboard);
     initKeyboard();
 });
