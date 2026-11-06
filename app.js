@@ -26,6 +26,7 @@ let pendingEmail = ''; // Store email for verification step
 // Leaderboard state
 let currentLeaderboardGame = 'total';
 let currentLeaderboardLimit = 5;
+let currentLeaderboardScoreType = 'overall';
 
 // Helper to truncate long names
 function truncateName(name, length = 12) {
@@ -36,13 +37,13 @@ function truncateName(name, length = 12) {
 // Calculate effective streak based on last active date using strict UTC to match DB
 function getEffectiveStreak(streakCount, lastActiveDate) {
     if (!lastActiveDate) return 0;
-    
+
     const todayStr = new Date().toISOString().split('T')[0];
     const tDate = new Date(todayStr); // UTC midnight
     const aDate = new Date(lastActiveDate); // UTC midnight
-    
+
     const diffFromActive = Math.round((tDate - aDate) / (1000 * 60 * 60 * 24));
-    
+
     // If last active was more than 1 day ago (e.g. 2 days ago), streak is broken
     if (diffFromActive > 1) return 0;
     return streakCount || 0;
@@ -249,8 +250,26 @@ function updateUIForUser(user) {
         welcomeText.style.display = 'inline-block';
     }
 
-    if (heroTitle) heroTitle.innerHTML = `Բարի եկաք,<br><span>${truncatedName}</span>`;
-    if (heroSubtitle) heroSubtitle.innerHTML = `Քու յաջորդ մարտահրաւէրը կը սպասէ քեզ:<br><br><span id="user-stats-display" style="font-weight: 800; color: var(--accent); font-size: 1.5rem;"></span>`;
+    if (heroTitle) {
+        heroTitle.textContent = '';
+        heroTitle.appendChild(document.createTextNode('Բարի եկաք,'));
+        heroTitle.appendChild(document.createElement('br'));
+        const heroName = document.createElement('span');
+        heroName.textContent = truncatedName;
+        heroTitle.appendChild(heroName);
+    }
+    if (heroSubtitle) {
+        heroSubtitle.textContent = '';
+        heroSubtitle.appendChild(document.createTextNode('Պատրա՞ստ ես յաջորդ մարտահրաւէրին:'));
+        heroSubtitle.appendChild(document.createElement('br'));
+        heroSubtitle.appendChild(document.createElement('br'));
+        const statsDisplay = document.createElement('span');
+        statsDisplay.id = 'user-stats-display';
+        statsDisplay.style.fontWeight = '800';
+        statsDisplay.style.color = 'var(--accent)';
+        statsDisplay.style.fontSize = '1.5rem';
+        heroSubtitle.appendChild(statsDisplay);
+    }
 
     // Fetch user profile stats
     if (sb) {
@@ -264,7 +283,14 @@ function updateUIForUser(user) {
                     } else {
                         // Refresh UI with Armenian name from profile
                         const profileName = truncateName(data.full_name, 15);
-                        if (heroTitle) heroTitle.innerHTML = `Բարի եկաք,<br><span>${profileName}</span>`;
+                        if (heroTitle) {
+                            heroTitle.textContent = '';
+                            heroTitle.appendChild(document.createTextNode('Բարի եկաք,'));
+                            heroTitle.appendChild(document.createElement('br'));
+                            const heroName = document.createElement('span');
+                            heroName.textContent = profileName;
+                            heroTitle.appendChild(heroName);
+                        }
                         if (welcomeText) welcomeText.textContent = `Բարի եկաք, ${profileName}`;
                     }
 
@@ -300,7 +326,14 @@ function updateUIForGuest() {
         welcomeText.style.display = 'none';
     }
 
-    if (heroTitle) heroTitle.innerHTML = 'Կենդանի Պահէ՛<br><span>Հայերէն Լեզուդ</span>';
+    if (heroTitle) {
+        heroTitle.textContent = '';
+        heroTitle.appendChild(document.createTextNode('Կենդանի Պահէ՛'));
+        heroTitle.appendChild(document.createElement('br'));
+        const guestName = document.createElement('span');
+        guestName.textContent = 'Հայերէն Լեզուդ';
+        heroTitle.appendChild(guestName);
+    }
     if (heroSubtitle) heroSubtitle.textContent = 'Խաղեր, մարտահրաւէրներ եւ զուարճալի փորձառութիւններ, որոնք կը դարձնեն մեր առօրեայ հայերէնը պարզ եւ հաճելի։';
 
     // Toggle Dashboard visibility
@@ -395,7 +428,7 @@ function renderPersonalDashboard(data) {
                 // Use strict UTC to match the DB last_active_date format
                 const todayStr = new Date().toISOString().split('T')[0];
                 const dStr = d.toISOString().split('T')[0];
-                
+
                 const tDate = new Date(todayStr);
                 const cDate = new Date(dStr);
                 const aDate = new Date(data.last_active_date);
@@ -438,6 +471,7 @@ function openAuthModal(tab = 'login') {
     authModal.classList.add('show');
     switchTab(tab);
 }
+window.openAuthModal = openAuthModal;
 
 function closeAuthModal() {
     authModal.classList.remove('show');
@@ -720,7 +754,93 @@ function hideLoader() {
     }, 500); // slight delay for smooth effect
 }
 
-async function loadLeaderboard(game = 'total', limit = 5) {
+const leaderboardScoreOptions = {
+    typing: [
+        { value: 'overall', label: 'Ընդհանուր' },
+        { value: 'typing_60', label: '1 Վայրկեան' },
+        { value: 'typing_120', label: '2 Վայրկեան' },
+        { value: 'typing_300', label: '5 Վայրկեան' },
+        { value: 'typing_speed', label: 'Արագութիւն' }
+    ],
+    ztype: [
+        { value: 'overall', label: 'Ընդհանուր' },
+        { value: 'ztype_easy', label: 'Դիւրին' },
+        { value: 'ztype_medium', label: 'Միջին' },
+        { value: 'ztype_hard', label: 'Դժուար' }
+    ],
+    hangman: [
+        { value: 'overall', label: 'Ընդհանուր' },
+        { value: 'best', label: 'Լաւագոյն' }
+    ],
+    spelling: [
+        { value: 'overall', label: 'Ընդհանուր' },
+        { value: 'best', label: 'Լաւագոյն' }
+    ]
+};
+
+function createLeaderboardScoreControls(game, scoreOptions, selectedScoreType) {
+    if (game === 'typing' || game === 'ztype') {
+        const bestOptions = scoreOptions.filter(option => option.value !== 'overall');
+        const selectedBest = bestOptions.find(option => option.value === selectedScoreType);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'leaderboard-best-dropdown';
+
+        const overallButton = document.createElement('button');
+        overallButton.type = 'button';
+        overallButton.className = 'score-filter-btn leaderboard-overall-btn';
+        overallButton.dataset.scoreType = 'overall';
+        overallButton.textContent = 'Ընդհանուր';
+        overallButton.classList.toggle('active', selectedScoreType === 'overall');
+        overallButton.setAttribute('aria-pressed', String(selectedScoreType === 'overall'));
+        wrapper.appendChild(overallButton);
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'leaderboard-best-menu-wrap';
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'score-filter-btn leaderboard-best-toggle';
+        toggle.setAttribute('aria-haspopup', 'true');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = 'Լաւագոյն';
+        if (selectedBest) {
+            toggle.classList.add('active');
+            toggle.dataset.selection = selectedBest.value;
+            toggle.setAttribute('aria-label', `Լաւագոյն՝ ${selectedBest.label}`);
+        }
+
+        const menu = document.createElement('div');
+        menu.className = 'leaderboard-best-menu';
+        menu.hidden = true;
+        menu.setAttribute('aria-label', 'Լաւագոյն արդիւնքներ');
+        bestOptions.forEach(option => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'leaderboard-best-option';
+            item.dataset.scoreType = option.value;
+            item.textContent = option.label;
+            item.classList.toggle('active', option.value === selectedScoreType);
+            item.setAttribute('aria-pressed', String(option.value === selectedScoreType));
+            menu.appendChild(item);
+        });
+
+        dropdown.append(toggle, menu);
+        wrapper.appendChild(dropdown);
+        return [wrapper];
+    }
+
+    return scoreOptions.map(option => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'score-filter-btn';
+        button.dataset.scoreType = option.value;
+        button.textContent = option.label;
+        button.classList.toggle('active', option.value === selectedScoreType);
+        button.setAttribute('aria-pressed', String(option.value === selectedScoreType));
+        return button;
+    });
+}
+
+async function loadLeaderboard(game = 'total', limit = 5, scoreType = currentLeaderboardScoreType) {
     const tbody = document.getElementById('leaderboard-body');
     if (!tbody) return;
 
@@ -732,6 +852,19 @@ async function loadLeaderboard(game = 'total', limit = 5) {
     // Update local state
     currentLeaderboardGame = game;
     currentLeaderboardLimit = limit;
+    const scoreOptions = leaderboardScoreOptions[game] || [];
+    const selectedOption = scoreOptions.some(option => option.value === scoreType)
+        ? scoreType
+        : 'overall';
+    currentLeaderboardScoreType = scoreOptions.length ? selectedOption : 'overall';
+
+    const scoreFilters = document.getElementById('leaderboard-score-filters');
+    if (scoreFilters) {
+        scoreFilters.hidden = !scoreOptions.length;
+        scoreFilters.replaceChildren(
+            ...createLeaderboardScoreControls(game, scoreOptions, currentLeaderboardScoreType)
+        );
+    }
 
     if (!sb) {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Սխալ: Տուեալներու պահեստը չէ գտնուած:</td></tr>';
@@ -743,7 +876,7 @@ async function loadLeaderboard(game = 'total', limit = 5) {
             return;
         }
 
-        let data = await window.HaygAPI.getLeaderboard(game, limit);
+        let data = await window.HaygAPI.getLeaderboard(game, limit, currentLeaderboardScoreType);
 
         // Sort by effective streak if in streak mode
         if (game === 'streak') {
@@ -760,7 +893,17 @@ async function loadLeaderboard(game = 'total', limit = 5) {
         // Update header icon/text
         const valueHeader = document.getElementById('leaderboard-value-header');
         if (valueHeader) {
-            valueHeader.textContent = (game === 'streak') ? '🔥' : 'XP';
+            if (game === 'streak') {
+                valueHeader.textContent = '🔥';
+            } else if (currentLeaderboardScoreType !== 'overall') {
+                valueHeader.textContent = game === 'hangman'
+                    ? 'Շարք'
+                    : currentLeaderboardScoreType === 'typing_speed'
+                        ? 'WPM'
+                        : 'Լաւագոյն նիշ';
+            } else {
+                valueHeader.textContent = 'XP';
+            }
         }
 
         if (!data || data.length === 0) {
@@ -790,10 +933,14 @@ async function loadLeaderboard(game = 'total', limit = 5) {
                 if (streak >= 7) streakStyle = `style="color: hsl(0, 100%, 50%); font-weight: 800; text-shadow: 0 0 8px rgba(239, 68, 68, 0.4); text-align: center;"`;
                 valueCell = `<td class="streak-cell" ${streakStyle}>🔥 ${streak}</td>`;
             } else {
-                const scoreIntensity = Math.min((score / 5000) * 100, 100);
+                const isTypingSpeed = game === 'typing' && currentLeaderboardScoreType === 'typing_speed';
+                const scoreIntensity = Math.min((score / (isTypingSpeed ? 300 : 5000)) * 100, 100);
                 let scoreStyle = `style="color: hsl(260, ${scoreIntensity}%, 70%); font-weight: 700; text-align: center;"`;
-                if (score >= 5000) scoreStyle = `style="color: var(--primary); font-weight: 800; text-shadow: 0 0 10px rgba(139, 92, 246, 0.3); text-align: center;"`;
-                valueCell = `<td class="score-cell" ${scoreStyle}>${score} <small>XP</small></td>`;
+                if (score >= (isTypingSpeed ? 300 : 5000)) scoreStyle = `style="color: var(--primary); font-weight: 800; text-shadow: 0 0 10px rgba(139, 92, 246, 0.3); text-align: center;"`;
+                const scoreUnit = currentLeaderboardScoreType === 'overall'
+                    ? ' <small>XP</small>'
+                    : isTypingSpeed ? ' <small>WPM</small>' : '';
+                valueCell = `<td class="score-cell" ${scoreStyle}>${score}${scoreUnit}</td>`;
             }
 
             html += `<tr class="${rankClass}">
@@ -828,7 +975,49 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        loadLeaderboard(btn.dataset.game, 5); // Reset to top 5 when changing game
+        loadLeaderboard(btn.dataset.game, 5, 'overall');
+    });
+});
+
+document.getElementById('leaderboard-score-filters')?.addEventListener('click', event => {
+    const toggle = event.target.closest('.leaderboard-best-toggle');
+    if (toggle) {
+        const menu = toggle.nextElementSibling;
+        const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!isExpanded));
+        menu.hidden = isExpanded;
+        return;
+    }
+
+    const button = event.target.closest('.score-filter-btn');
+    const menuOption = event.target.closest('.leaderboard-best-option');
+    const selected = menuOption || button;
+    if (!selected || selected.classList.contains('leaderboard-best-toggle')) return;
+    loadLeaderboard(currentLeaderboardGame, 5, selected.dataset.scoreType);
+});
+
+document.addEventListener('click', event => {
+    document.querySelectorAll('.leaderboard-best-menu-wrap').forEach(dropdown => {
+        if (dropdown.contains(event.target)) return;
+        const toggle = dropdown.querySelector('.leaderboard-best-toggle');
+        const menu = dropdown.querySelector('.leaderboard-best-menu');
+        if (toggle && menu) {
+            toggle.setAttribute('aria-expanded', 'false');
+            menu.hidden = true;
+        }
+    });
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    document.querySelectorAll('.leaderboard-best-menu-wrap').forEach(dropdown => {
+        const toggle = dropdown.querySelector('.leaderboard-best-toggle');
+        const menu = dropdown.querySelector('.leaderboard-best-menu');
+        if (toggle && menu && !menu.hidden) {
+            toggle.setAttribute('aria-expanded', 'false');
+            menu.hidden = true;
+            toggle.focus();
+        }
     });
 });
 
@@ -926,9 +1115,26 @@ function initModalScrollLock() {
 document.addEventListener('DOMContentLoaded', () => {
     initParticles();
     checkUser();
-    loadLeaderboard();
+    const requestedLeaderboard = new URLSearchParams(window.location.search).get('leaderboard');
+    const requestedFilter = requestedLeaderboard
+        ? Array.from(document.querySelectorAll('.filter-btn')).find(btn => btn.dataset.game === requestedLeaderboard)
+        : null;
+    if (requestedFilter) {
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        requestedFilter.classList.add('active');
+        loadLeaderboard(requestedLeaderboard);
+    } else {
+        loadLeaderboard();
+    }
     initScrollSpy();
     initModalScrollLock();
+
+    // Check URL parameters for auth actions
+    const urlParams = new URLSearchParams(window.location.search);
+    const authAction = urlParams.get('auth');
+    if (authAction === 'signup' || authAction === 'login') {
+        openAuthModal(authAction);
+    }
 
     // Initial reveal check
     window.dispatchEvent(new Event('scroll'));

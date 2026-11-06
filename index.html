@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Հայկ</title>
+    <meta name="description" lang="hy" content="Հայկ (Hayg)՝ արեւմտահայերէն խաղերու հարթակ։ Խաղա՛ հայերէն Wordle՝ Բառիկ, եւ բացայայտէ՛ բառախաղեր։">
+    <meta name="description" lang="en" content="Hayg (Հայկ) is home to Western Armenian games, including Armenian Wordle (Բառիկ) and fun word games. Visit hayg.net and play in Armenian.">
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@300;400;600;800&display=swap"
         rel="stylesheet">
@@ -16,7 +18,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="pics/logo.png">
-    <link rel="icon" type="image/png" href="pics/logo.png">
+    <link rel="icon" type="image/svg+xml" href="pics/logo.svg">
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
@@ -81,13 +83,51 @@
     <section id="games" class="section games-section">
         <h2 class="section-title">Խաղեր</h2>
         <div class="playful-games-grid">
-
+            
+            
+            
+            <!-- Western Armenian spelling -->
+            <div class="app-card spelling-card" id="spelling-game-card">
+                <div class="app-card-icon">Գ</div>
+                <div class="app-card-info">
+                    <h3>Ճիշդ Գրէ՛</h3>
+                    <p>Ընտրէ՛ ճիշդ տառը եւ զգո՛յշ եղիր․ ունիս միայն երեք կեանք։</p>
+                    <div class="app-card-tags">
+                        <span class="tag">Ուղղագրութիւն</span>
+                        <span class="tag">Արագութիւն</span>
+                    </div>
+                </div>
+                <a href="spelling-game.html" class="play-action-btn">
+                    <span class="play-arrow">▶</span> <span class="btn-text">Խաղալ</span>
+                </a>
+            </div>
+            <!-- Hangman -->
+            <div class="app-card hangman-card" id="hangman-game-card">
+                <div class="app-card-icon" aria-hidden="true">
+                    <svg viewBox="0 0 64 64" fill="none">
+                        <path d="M8 56h48M18 56V8h28v9M18 19h28M18 29l9-13" />
+                        <circle cx="46" cy="23" r="5" />
+                        <path d="M46 28v13m0-9-7 6m7-6 7 6m-7 3-6 9m6-9 6 9" />
+                    </svg>
+                </div>
+                <div class="app-card-info">
+                    <h3>Կախաղան</h3>
+                    <p>Գուշակէ՛ գաղտնի բառը՝ տառ առ տառ։ Իւրաքանչիւր սխալ տառով կախաղանը կը գծուի:</p>
+                    <div class="app-card-tags">
+                        <span class="tag">Բառապաշար</span>
+                        <span class="tag">Գուշակութիւն</span>
+                    </div>
+                </div>
+                <a href="hangman.html" class="play-action-btn">
+                    <span class="play-arrow">▶</span> <span class="btn-text">Խաղալ</span>
+                </a>
+            </div>
             <!-- Game Card 1: Wordle -->
-            <div class="app-card wordle-card">
+            <div class="app-card wordle-card" id="wordle-game-card">
                 <div class="app-card-icon">🔠</div>
                 <div class="app-card-info">
                     <h3>Բառիկ</h3>
-                    <p>Գուշակէ՛ 5-տառնոց գաղտնի բառը: Ունիս միայն 6 փորձ 🧠</p>
+                    <p>Գուշակէ՛ 5-տառնոց գաղտնի բառը: Ունիս միայն 6 փորձ </p>
                     <div class="app-card-tags">
                         <span class="tag">Տրամաբանութիւն</span>
                         <span class="tag">Ամէնօրեայ</span>
@@ -99,11 +139,11 @@
             </div>
 
             <!-- Game Card 2: Typing -->
-            <div class="app-card typing-card">
+            <div class="app-card typing-card" id="typing-game-card">
                 <div class="app-card-icon">⚡</div>
                 <div class="app-card-info">
                     <h3>Արագատիպ</h3>
-                    <p>Որքա՞ն արագ կրնաս գրել: Փորձէ՛ քու մատներուդ արագութիւնը ժամանակին դէմ ⏱️</p>
+                    <p>Որքա՞ն արագ կրնաս գրել: Փորձէ՛ քու մատներուդ արագութիւնը ժամանակին դէմ </p>
                     <div class="app-card-tags">
                         <span class="tag">Արագութիւն</span>
                         <span class="tag">Մրցակցութիւն</span>
@@ -115,11 +155,11 @@
             </div>
 
             <!-- Game Card 3: Space -->
-            <div class="app-card space-card">
+            <div class="app-card space-card" id="ztype-game-card">
                 <div class="app-card-icon">🚀</div>
                 <div class="app-card-info">
                     <h3>Աստղային Մարտ</h3>
-                    <p>Պաշտպանէ՛ մոլորակդ ինկող աստղաքարերէն՝ արագ եւ ճիշդ գրելով 🌌</p>
+                    <p>Պաշտպանէ՛ մոլորակդ ինկող աստղաքարերէն՝ արագ եւ ճիշդ գրելով </p>
                     <div class="app-card-tags">
                         <span class="tag">Արկածային</span>
                         <span class="tag">Արագութիւն</span>
@@ -131,11 +171,11 @@
             </div>
 
             <!-- Game Card 4: Unscramble -->
-            <div class="app-card bee-card">
+            <div class="app-card bee-card" id="spelling-bee-card">
                 <div class="app-card-icon">🧩</div>
                 <div class="app-card-info">
                     <h3>Տառախառն</h3>
-                    <p>Վերադասաւորէ՛ տառերը եւ գտի՛ր պահուած բոլոր բառերը: Գտի՛ր գլխաւոր բառը 🔀</p>
+                    <p>Վերադասաւորէ՛ տառերը եւ գտի՛ր պահուած բոլոր բառերը: Գտի՛ր գլխաւոր բառը </p>
                     <div class="app-card-tags">
                         <span class="tag">Բառապաշար</span>
                         <span class="tag">Հանգիստ</span>
@@ -145,9 +185,10 @@
                     <span class="play-arrow">▶</span> <span class="btn-text">Խաղալ</span>
                 </a>
             </div>
-
         </div>
+        
     </section>
+    
 
     <!-- Personal Dashboard (Shown when logged in) -->
     <section id="personal-dashboard" class="section personal-dashboard-section" style="display: none;">
@@ -222,6 +263,16 @@
             <button class="filter-btn" data-game="bee" title="Տառախառն">🧩</button>
             <button class="filter-btn" data-game="typing" title="Արագատիպ">⚡</button>
             <button class="filter-btn" data-game="ztype" title="Աստղային Մարտ">🚀</button>
+            <button class="filter-btn" data-game="spelling" title="Ճիշդ Գրէ՛">Գ</button>
+            <button class="filter-btn" data-game="hangman" title="Կախաղան" aria-label="Կախաղան">
+                <svg class="hangman-filter-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                    <path d="M8 56h48M18 56V8h28v9M18 19h28M18 29l9-13" />
+                    <circle cx="46" cy="23" r="5" />
+                    <path d="M46 28v13m0-9-7 6m7-6 7 6m-7 3-6 9m6-9 6 9" />
+                </svg>
+            </button>
+        </div>
+        <div id="leaderboard-score-filters" class="leaderboard-score-filters" hidden>
         </div>
 
         <div class="leaderboard-container glass-panel">
